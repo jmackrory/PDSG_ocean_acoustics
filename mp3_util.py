@@ -39,7 +39,7 @@ def load_mp3_arr(fpath):
     return mp3.get_array_of_samples()
 
 
-def load_mp3_arr_from_date(datetime, data_type='every_other_hour'):
+def load_mp3_arr_from_datetime(datetime, data_type='every_other_hour'):
     fpath = get_file_path(datetime)
     return load_mp3_arr(fpath)
 
@@ -56,12 +56,18 @@ def get_power_spectrum(ts):
     return fw
 
 
-def high_pass_filter(w, w0, n):
-    return w**n / (w0**n + w**n)
-
-
 def low_pass_filter(w, w0, n):
-    return w0**n / (w0**n + w**n)
+    """gets Fourier low-pass filter.  Symmetric for Fourier domain"""
+    rv = 1.0 / (1.0 + np.exp(-(w-w0)/n) + 1E-6)
+    rv = rv + rv[::-1]
+    return rv
+
+
+def high_pass_filter(w, w0, n):
+    """gets Fourier high-pass filter.  Symmetric for Fourier domain"""
+    rv = 1.0 / (1.0 + np.exp((w-w0)/n) + 1E-6)
+    rv = rv + rv[::-1]
+    return rv
 
 
 def load_file_and_get_power(fpath):
@@ -69,7 +75,7 @@ def load_file_and_get_power(fpath):
     return get_power_spectrum(marr)
 
 
-def get_wiener_filter(data_path='data/every_other_hour/2015/01/17'):
+def get_average_noise_spectrum(data_path='data/every_other_hour/2015/01/17'):
     # load all files.
     power_spec = 0
     ncount = 0
@@ -78,7 +84,7 @@ def get_wiener_filter(data_path='data/every_other_hour/2015/01/17'):
         fpaths += [f'{root}/{fn}' for fn in files if 'mp3' in fn]
     ncount = len(fpaths)
     print(fpaths)
-    num_batch = int(ncount / NUM_WORKERS)+1
+    num_batch = int(ncount / NUM_WORKERS) + 1
     t0 = time()
     print(num_batch)
     for i in range(num_batch):
@@ -91,13 +97,25 @@ def get_wiener_filter(data_path='data/every_other_hour/2015/01/17'):
         print(f'{t2 - t1} sec.  {(t2 - t0) / (i + 0.001) * (num_batch - i)} sec remaining')
     return power_spec / (ncount + 0.001)
 
-def get_band_pass_filter(low_f=20, high_f = 8000):
-    pass
 
-def remove_noise(ts, freq_filter):
-
-
+def band_pass_filter_signal(low_f=20, high_f = 8000):
     pass
 
 
-# add
+def remove_noise_wiener(ts, freq_filter, high_pass_knee = 8000):
+    fw = fft(ts)
+    w = np.arange(len(fw))
+    w0 = high_pass_knee * FILE_LENGTH
+    fw2 = fw * low_pass_filter(w, w0, 100)
+    D_height = 1.0/SAMPLES_PER_SEC  # treat input filter as delta-function in time.
+    filtered_fw = fw2 * (fw2 * D_height) / ( D_height * fw2 + np.abs(freq_filter))
+    return np.real(ifft(filtered_fw)).astype(np.float32), np.abs(fw), np.abs(filtered_fw)
+
+def get_spectrogram(mp3_arr, fs=24000, nperseg=4096):
+
+    f, t, Zft = stft(mp3_arr, fs=fs, nperseg=nperseg)
+    Zft = Zft[::-1, :]  # reverse freq axis for log
+    fig, ax = plt.subplots(figsize=(15,10))
+    plt.imshow(np.log10(np.abs(Zft)+1), extent=[0,max(t),f[1],f[-1]], aspect='auto')
+    ax.set_yscale('log')
+    plt.show()
