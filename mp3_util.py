@@ -1,12 +1,23 @@
 from datetime import datetime
 from time import time
 from multiprocessing import Pool
+from functools import lru_cache
 import os
+import sys
+import pickle
 
 import numpy as np
 from numpy.fft import fft, ifft
 from pydub import AudioSegment
-from const import FILE_LENGTH, SAMPLES_PER_SEC, NUM_WORKERS
+from const import SAMPLE_LENGTH, SAMPLES_PER_SEC, NUM_WORKERS
+
+
+def get_var_size():
+    for obj in locals.items():
+        if isinstance(obj, np.ndarray):
+            print(obj, obj.nbytes/(1024**2))
+        else:
+            print(obj, getsizeof(obj))
 
 
 def get_file_path(datetime, data_type='every_other_hour'):
@@ -64,6 +75,12 @@ def low_pass_filter(w, w0, n):
     return w0**n / (w0**n + w**n)
 
 
+def get_freqs():
+    fmax = SAMPLES_PER_SEC / 2
+    df = 1.0 / SAMPLE_LENGTH
+    return np.arange(0, fmax, df)
+
+
 def load_file_and_get_power(fpath):
     marr = load_mp3_arr(fpath)
     return get_power_spectrum(marr)
@@ -89,15 +106,36 @@ def get_wiener_filter(data_path='data/every_other_hour/2015/01/17'):
         power_spec += np.array(power_specs).sum(axis=0)
         t2 = time()
         print(f'{t2 - t1} sec.  {(t2 - t0) / (i + 0.001) * (num_batch - i)} sec remaining')
-    return power_spec / (ncount + 0.001)
+    return power_spec / (num_batch + 0.001)
+
+
+def load_filter_from_pickle(pickle_path):
+    with open(pickle_path, 'rb') as pp:
+        filt = pickle.load(pp)
+    return filt
+
 
 def get_band_pass_filter(low_f=20, high_f = 8000):
     pass
 
-def remove_noise(ts, freq_filter):
 
-
-    pass
-
+def remove_noise_wiener(ts, avg_noise_power):
+    """
+    Cheap version of Wiener filter.  Tries to filter out average noise.
+    Assume input filter $h$ is delta-response.  Also assumes spectrum of signal
+    is just given by the file.  
+    Arg:
+    ts - np.array input sample of length 300 sec
+    avg_noise_power - np.array with average power spectrum.  (Must be same sample_rate, length as ts!)
+    Return:
+    filtered_fw - ts with noise hopefully reduced.
+    """
+    fw = fft(ts)
+    Ns = len(ts)
+    filtered_fw = fw * (Ns* fw / (Ns*fw + avg_noise_power))
+    print(max(abs(fw[100:-100:])**2), max(avg_noise_power[100:-100]))
+    filtered_ts = np.real(ifft(filtered_fw))
+    return filtered_ts.astype(np.int16), np.abs(fw).astype(np.float32), np.abs(filtered_fw).astype(np.float32)
 
 # add
+

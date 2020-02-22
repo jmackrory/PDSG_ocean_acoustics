@@ -32,3 +32,4 @@ Fin Whales: 20 Hz.  FM data from 30-40 Hz down to 20Hz over a second.
 Sei whales: 3 kHz.  Also 100Hz down to 3 Hz over a second. 
 Minke around 1.4 kHz "boing"
 
+Apparently, June through October is the quiet season (Whales migrate away back to cooler waters)
