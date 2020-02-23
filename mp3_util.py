@@ -9,7 +9,7 @@ import pickle
 import numpy as np
 from numpy.fft import fft, ifft
 from pydub import AudioSegment
-from const import SAMPLE_LENGTH, SAMPLES_PER_SEC, NUM_WORKERS
+from const import FILE_LENGTH, SAMPLES_PER_SEC, NUM_WORKERS
 
 
 def get_var_size():
@@ -67,14 +67,14 @@ def get_power_spectrum(ts):
     return fw
 
 
-def low_pass_filter(w, w0, n):
+def high_pass_filter(w, w0, n=100):
     """gets Fourier low-pass filter.  Symmetric for Fourier domain"""
     rv = 1.0 / (1.0 + np.exp(-(w-w0)/n) + 1E-6)
     rv = rv + rv[::-1]
     return rv
 
 
-def high_pass_filter(w, w0, n):
+def low_pass_filter(w, w0, n=100):
     """gets Fourier high-pass filter.  Symmetric for Fourier domain"""
     rv = 1.0 / (1.0 + np.exp((w-w0)/n) + 1E-6)
     rv = rv + rv[::-1]
@@ -129,13 +129,12 @@ def band_pass_filter_signal(low_f=20, high_f = 8000):
     pass
 
 
-def remove_noise_wiener(ts, freq_filter, high_pass_knee = 8000):
+def remove_noise_wiener(ts, noise_power_spec, low_pass_knee = 8000):
     fw = fft(ts)
     w = np.arange(len(fw))
-    w0 = high_pass_knee * FILE_LENGTH
-    fw2 = fw * low_pass_filter(w, w0, 100)
+    H = low_pass_filter(w, low_pass_knee * FILE_LENGTH, 1000)
     D_height = 1.0/SAMPLES_PER_SEC  # treat input filter as delta-function in time.
-    filtered_fw = fw2 * (fw2 * D_height) / ( D_height * fw2 + np.abs(freq_filter))
+    filtered_fw = H**2 * fw * (np.abs(fw)**2 ) / ( np.abs(fw)**2 + np.abs(noise_power_spec))
     return np.real(ifft(filtered_fw)).astype(np.float32), np.abs(fw), np.abs(filtered_fw)
 
 def get_spectrogram(mp3_arr, fs=24000, nperseg=4096):
