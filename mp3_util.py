@@ -134,7 +134,7 @@ def remove_noise_wiener(ts, noise_power_spec, low_pass_knee = 8000):
     w = np.arange(len(fw))
     H = low_pass_filter(w, low_pass_knee * FILE_LENGTH, 1000)
     D_height = 1.0/SAMPLES_PER_SEC  # treat input filter as delta-function in time.
-    filtered_fw = H**2 * fw * (np.abs(fw)**2 ) / ( np.abs(fw)**2 + np.abs(noise_power_spec))
+    filtered_fw = H**2 * fw * (np.abs(fw)**2 * D_height) / ( D_height**2 *np.abs(fw)**2 + np.abs(noise_power_spec))
     return np.real(ifft(filtered_fw)).astype(np.float32), np.abs(fw), np.abs(filtered_fw)
 
 def get_spectrogram(mp3_arr, fs=24000, nperseg=4096):
